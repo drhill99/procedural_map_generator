@@ -3,6 +3,8 @@ import pygame
 class Character:
     def __init__(self, coord: tuple):
         self.coord = coord
+        self.render_x = float(self.coord[0])
+        self.render_y = float(self.coord[1])
         self.image = pygame.image.load("assets/avatar.png").convert_alpha()
         for x in range(self.image.get_width()):
                 for y in range(self.image.get_height()):

@@ -4,6 +4,8 @@ from tile import Tile
 from dataclasses import dataclass
 from character import *
 from pynput import keyboard
+from defines import *
+
 @dataclass
 class MapDetails:
     tile_size: int
@@ -25,7 +27,62 @@ class Camera:
         self.y = 0
         self.width = width
         self.height = height
-        
+def has_los(floor, start, target):
+    previous = None
+    for x, y in bresenham(start, target):
+        if (x,y) == start:
+            previous = (x,y)
+            continue
+        if previous is not None:
+            prev_x, prev_y = previous
+            dx = x - prev_x
+            dy = y - prev_y
+
+            if dx != 0 and dy != 0:
+                side_1: Tile = floor[prev_y][prev_x + dx]
+                side_2: Tile = floor[prev_y + dy][prev_x]
+
+                if (
+                    side_1.get_type() == WALL
+                    and
+                    side_2.get_type() == WALL
+                ):
+                    return False
+        tile: Tile = floor[y][x]
+
+        if tile.get_type() == WALL:
+            return (x,y) == target
+
+        previous = (x,y)
+    return True
+def bresenham(start, end):
+    x0, y0 = start
+    x1, y1 = end
+
+    dx = abs(x1 - x0)
+    dy = abs(y1 - y0)
+
+    sx = 1 if x0 < x1 else -1
+    sy = 1 if y0 < y1 else -1
+
+    error = dx - dy
+
+    while True:
+        yield (x0, y0)
+
+        if x0 == x1 and y0 == y1:
+            break
+
+        e2 = 2 * error
+
+        if e2 > -dy:
+            error -= dy
+            x0 += sx
+
+        if e2 < dx:
+            error += dx
+            y0 += sy
+
 def gen_walls(floor: list, map_details: MapDetails):
     tile_size = map_details.tile_size
     # map_height = map_details.map_height

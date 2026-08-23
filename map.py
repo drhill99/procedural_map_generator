@@ -3,14 +3,11 @@ import math
 import random
 from colorama import init, Fore, Back, Style
 from character import Character
-
+import threading
+from defines import *
 init()
 
-WALL = f"{Fore.BLACK}{Back.LIGHTBLACK_EX}#{Style.RESET_ALL}"
-DELETED = f"{Fore.RED}D{Style.RESET_ALL}"
-EXPANDED = f"{Fore.GREEN}E{Style.RESET_ALL}"
-NEW = f"{Fore.MAGENTA}N{Style.RESET_ALL}"
-FLOOR = f"{Fore.LIGHTWHITE_EX}{Back.BLACK}+{Style.RESET_ALL}"
+
 tile_type_map = {
     " ": "floor",
     "#": "wall"
@@ -53,7 +50,10 @@ class Map:
     def build_map(self):
         self.tower = [self.build_floor() for _ in range(self.num_floors)]
         self.build_path()
-        # self.display_map()
+        for floor in self.tower:
+            self.build_wall_map(floor)
+            self.determine_wall_adjacencies(floor)
+            self.remove_orphaned_wall_tiles(floor)
     def get_tower(self):
         return self.tower
     def build_floor(self):
@@ -67,6 +67,104 @@ class Map:
                     # display += f"{tile.get_type()}, {tile.get_coord()}, "
                     display += f"{tile.get_type()} "
                 print(display)
+    # def explore(self, start_coord, floor):
+    #     # print(f"start_coord: {start_coord}")
+    #     # print("current_map")
+    #     # self.display_map()
+    #     possible_moves = self.check_moves(floor, start_coord)
+    #     if len(possible_moves) == 0:
+    #         return
+
+    #     # if consecutive_moves >= 3:
+    #     #     if len(possible_moves) > 1:
+    #     #         if previous_direction in possible_moves:
+    #     #             possible_moves.remove(previous_direction)
+    #     for move in possible_moves:
+    #         # next_move = random.choice(possible_moves)
+    #         next_move = move
+    #         # if next_move == previous_direction:
+    #         #     consecutive_moves += 1
+    #         # previous_direction = next_move
+    #         # print(f"moving {next_move}")
+    #         shift = self.moves[next_move]
+    #         next_coord = (
+    #             start_coord[0]+shift[0],
+    #             start_coord[1]+shift[1] 
+    #         )
+    #         start_coord = next_coord
+    #         # if start_coord in self.walls:
+    #         #     self.walls.remove(start_coord)
+    #         self.already_visited_coords.append(next_coord)
+    #         # print(f"next_coord: {next_coord}")
+    #         next_tile = floor[next_coord[1]][next_coord[0]]
+    #         current_tile = next_tile
+    #         current_tile.set_type(FLOOR)
+    #         self.explore(next_coord, floor)
+    def carve(self, coord, floor):
+        # print(coord)
+        x, y = coord
+        floor[y][x].set_type(FLOOR)
+    def carve_room(self, center_coord, floor):
+        cx, cy = center_coord
+
+        room_width = random.randint(3,6)
+        room_height = random.randint(3,6)
+
+        left = int(cx - room_width // 2)
+        top = int(cy - room_height // 2)
+
+        for y in range(top, top + room_height):
+            for x in range(left, left + room_width):
+                if not (0 <= x < self.width and 0 <= y < self.height):
+                    return False
+        if self.room_fits_space(left, top, floor, room_width, room_height):
+            for y in range(top, top + room_height):
+                for x in range(left, left + room_width):
+                    floor[y][x].set_type(FLOOR)
+                    self.already_visited_coords.append((x,y))
+        
+    def room_fits_space(self, left, top, floor, width, height):
+        padding = 1
+
+        for y in range(top - padding, top + height + padding):
+            for x in range( left - padding, left + height + padding):
+                if not (0 <= x < self.width and 0 <= y < self.height):
+                    return False
+            if floor[y][x].get_type == FLOOR:
+                return False
+        return True
+    def explore(self, start_coord, floor):
+        branch_chance = 0.25
+        room_chance = 0.1
+        stack = [start_coord]
+
+        while stack:
+
+            x, y = stack.pop()
+
+            possible_moves = self.check_moves(floor, (x,y))
+
+            random.shuffle(possible_moves)
+            if not possible_moves:
+                if random.random() < room_chance:
+                    self.carve_room((x,y), floor)
+                else:
+                    floor[y][x].set_type(ENDPOINT)
+                continue
+            main_move = possible_moves.pop()
+
+            self.carve(main_move, floor)
+            stack.append(main_move)
+            # next_coord = (
+            #     current_coord[0] + dx,
+            #     current_coord[1] + dy
+            # )
+
+            # self.already_visited_coords.append(next_coord)
+            for move in possible_moves:
+                if random.random() < branch_chance:
+                    self.carve(move, floor)
+                    stack.append(move)
     def build_path(self, inc_start_coord = None, rerun: bool = None):
         if rerun is None:
             self.already_visited_coords = []
@@ -94,82 +192,114 @@ class Map:
             current_tile.set_type(FLOOR)
             # floor[start_coord[0]][start_coord[1]].set_type(FLOOR)
             # for _ in range(50):
-            while True:
-                # print(f"current_coord: {current_coord}")
-                # print("current_map")
-                # self.display_map()
-                possible_moves = self.check_moves(floor, current_coord)
-                if len(possible_moves) == 0:
-                    break
-                if consecutive_moves >= 4:
-                    if len(possible_moves) > 1:
-                        if previous_direction in possible_moves:
-                            possible_moves.remove(previous_direction)
-                
-                next_move = random.choice(possible_moves)
-                if next_move == previous_direction:
-                    consecutive_moves += 1
-                # print(f"moving {next_move}")
-                shift = self.moves[next_move]
-                next_coord = (
-                    current_coord[0]+shift[0],
-                    current_coord[1]+shift[1] 
-                )
-                current_coord = next_coord
-                # if current_coord in self.walls:
-                #     self.walls.remove(current_coord)
-                self.already_visited_coords.append(current_coord)
-                # print(f"next_coord: {next_coord}")
-                next_tile = floor[next_coord[1]][next_coord[0]]
-                current_tile = next_tile
-                current_tile.set_type(FLOOR)
+            self.explore(current_coord, floor)
+            # self.remove_alcoves_and_pillars(floor)
+            # while True:
+            #     # print(f"current_coord: {current_coord}")
+            #     # print("current_map")
+            #     # self.display_map()
+            #     possible_moves = self.check_moves(floor, current_coord)
+            #     if len(possible_moves) == 0:
+            #         break
+
+            #     # if consecutive_moves >= 3:
+            #     #     if len(possible_moves) > 1:
+            #     #         if previous_direction in possible_moves:
+            #     #             possible_moves.remove(previous_direction)
+            #     for move in possible_moves:
+            #         # next_move = random.choice(possible_moves)
+            #         next_move = move
+            #         # if next_move == previous_direction:
+            #         #     consecutive_moves += 1
+            #         # previous_direction = next_move
+            #         # print(f"moving {next_move}")
+            #         shift = self.moves[next_move]
+            #         next_coord = (
+            #             current_coord[0]+shift[0],
+            #             current_coord[1]+shift[1] 
+            #         )
+            #         current_coord = next_coord
+            #         # if current_coord in self.walls:
+            #         #     self.walls.remove(current_coord)
+            #         self.already_visited_coords.append(current_coord)
+            #         # print(f"next_coord: {next_coord}")
+            #         next_tile = floor[next_coord[1]][next_coord[0]]
+            #         current_tile = next_tile
+            #         current_tile.set_type(FLOOR)
+            #         self.build_path(next_coord)
                 # check and save neighbor alls
                 # self.save_neighbor_walls(floor, next_coord)
                 # for wall_coord in self.walls:
                 #     print(f"wall coord: {wall_coord}")
 
-            floor_tiles = 0
-            for row in floor:
-                for tile_type in row:
-                    tile_type = tile_type.get_type()
-                    # print(f"tile_type: {tile_type}")
-                    floor_tiles += 1 if tile_type == FLOOR else 0
-            tile_utilization = floor_tiles / self.area
+            # floor_tiles = 0
+            # for row in floor:
+            #     for tile_type in row:
+            #         tile_type = tile_type.get_type()
+            #         # print(f"tile_type: {tile_type}")
+            #         floor_tiles += 1 if tile_type == FLOOR else 0
+            # tile_utilization = floor_tiles / self.area
         
             # print(f"used area: {tile_utilization}, area useage threshold: {self.map_area_usage} of total area: {self.area}")
-            if tile_utilization > self.map_area_usage:
-                return
-            else:
-                # farthest_coord = self.find_furthest_visited_tile(start_coord)
-                best_tile: Tile = self.find_best_candidate_tile(floor)
-                new_start_coord = best_tile.get_coord()
-                self.build_path(inc_start_coord=new_start_coord, rerun=True)
+            # if tile_utilization > self.map_area_usage:
+            #     return
+            # else:
+            #     # farthest_coord = self.find_furthest_visited_tile(start_coord)
+            #     best_tile: Tile = self.find_best_candidate_tile(floor)
+            #     new_start_coord = best_tile.get_coord()
+            #     self.build_path(inc_start_coord=new_start_coord, rerun=True)
             # print("before orphan expansion")
-            for row in floor:
-                for tile in row:
-                    if tile.get_type() == WALL:
-                        self.walls.add(tile.get_coord())
-            for coord in self.walls:
-                x, y = coord
-                tile: Tile = floor[y][x]
-                # print("tile", x, y)
-                for idx, (dx, dy) in self.adjacencies.items():
-                    tx = x + dx
-                    ty = y + dy
-                    adj_tile: Tile = None
-                    try:
-                        adj_tile: Tile = floor[ty][tx]
-                    except:
-                        pass
-                    if adj_tile is not None:
-                        adj_tile_is_wall = adj_tile.get_type() == WALL
-                        tile.update_adj(idx, adj_tile_is_wall)
-                tile.calc_adj()
-                self.unique_adjacencies.add(tuple(tile.adjacencies))
+            # self.build_wall_map(floor)
+            # self.determine_wall_adjacencies(floor)
+            # for row in floor:
+            #     for tile in row:
+            #         if tile.get_type() == WALL:
+            #             self.walls.add(tile.get_coord())
+            # for coord in self.walls:
+            #     x, y = coord
+            #     tile: Tile = floor[y][x]
+            #     # print("tile", x, y)
+            #     for idx, (dx, dy) in self.adjacencies.items():
+            #         tx = x + dx
+            #         ty = y + dy
+            #         adj_tile: Tile = None
+            #         try:
+            #             adj_tile: Tile = floor[ty][tx]
+            #         except:
+            #             pass
+            #         if adj_tile is not None:
+            #             adj_tile_is_wall = adj_tile.get_type() == WALL
+            #             tile.update_adj(idx, adj_tile_is_wall)
+            #     tile.calc_adj()
+            #     self.unique_adjacencies.add(tuple(tile.adjacencies))
                             
             # self.display_map()
 
-            self.remove_orphaned_wall_tiles(floor)
+            # self.remove_orphaned_wall_tiles(floor)
+    def build_wall_map(self, floor):
+        for row in floor:
+            for tile in row:
+                if tile.get_type() == WALL:
+                    self.walls.add(tile.get_coord())
+    def determine_wall_adjacencies(self, floor):
+        for coord in self.walls:
+            x, y = coord
+            tile: Tile = floor[y][x]
+            # print("tile", x, y)
+            for idx, (dx, dy) in self.adjacencies.items():
+                tx = x + dx
+                ty = y + dy
+                adj_tile: Tile = None
+                try:
+                    adj_tile: Tile = floor[ty][tx]
+                except:
+                    pass
+                if adj_tile is not None:
+                    adj_tile_is_wall = adj_tile.get_type() == WALL
+                    tile.update_adj(idx, adj_tile_is_wall)
+            tile.calc_adj()
+            self.unique_adjacencies.add(tuple(tile.adjacencies))
+                                    
     def check_tile_sides(self, floor: list, tile: Tile):
         x, y = tile.get_coord()
         for (dx, dy) in self.moves.values():
@@ -181,28 +311,40 @@ class Map:
         possible_moves = []
 
         for movement, (dx, dy) in self.moves.items():
-            new_x = x + dx
-            new_y = y + dy
+            tx = x + dx
+            ty = y + dy
 
             # Candidate tile must be inside the map
-            if not (0 <= new_x < self.width and 0 <= new_y < self.height):
+            if not (0 <= tx < self.width and 0 <= ty < self.height):
                 continue
 
             # Don't revisit a tile we've already carved
-            if (new_x, new_y) in self.already_visited_coords:
+            if (tx, ty) in self.already_visited_coords:
                 continue
 
-            # Look one more tile beyond the candidate
-            beyond_x = new_x + dx
-            beyond_y = new_y + dy
+            valid = True
 
-            # If the tile beyond is outside the map, that's okay.
-            # We're approaching the edge.
-            if 0 <= beyond_x < self.width and 0 <= beyond_y < self.height:
-                if floor[beyond_y][beyond_x].get_type() == FLOOR:
+            for ndx, ndy in self.moves.values():
+            # Look one more tile beyond the candidate
+                nx = tx + ndx
+                ny = ty + ndy
+
+                if not (0 <= nx < self.width and 0 <= ny < self.height):
                     continue
 
-            possible_moves.append(movement)
+                if (nx, ny) == (x,y):
+                    continue
+
+                if floor[ny][nx].get_type() == FLOOR:
+                    valid = False
+                    break
+                # If the tile beyond is outside the map, that's okay.
+                # We're approaching the edge.
+                # if 0 <= beyond_x < self.width and 0 <= beyond_y < self.height:
+                #     if floor[beyond_y][beyond_x].get_type() == FLOOR:
+                #         continue
+            if valid:
+                possible_moves.append((tx, ty))
 
         return possible_moves
     
@@ -217,7 +359,34 @@ class Map:
                 farthest_coord = (x,y)
             # print(f"farthest: {farthest}")
         return farthest_coord
-    
+
+    # TODO: make this thing work
+    def remove_alcoves_and_pillars(self, floor):
+        for row in floor:
+            for tile in row:
+                floor_count = 0
+                wall_count = 0
+                if isinstance(tile, Tile):
+                    x, y = tile.get_coord()
+                    for(dx, dy) in self.all_moves.values():
+                        tx = x + dx
+                        ty = y + dy
+                        if not (0 <= tx < self.width and 0 <= ty < self.height):
+                            continue
+                        tile_t: Tile = floor[ty][tx]
+                        tile_t_type = tile_t.get_type()
+                        if tile_t_type == FLOOR:
+                            floor_count += 1
+                        elif tile_t_type == WALL:
+                            wall_count += 1
+                    tile_type = tile.type
+                    if tile_type == FLOOR:
+                        if floor_count == 3 and wall_count == 5:
+                            tile.set_type(WALL)
+                    elif tile_type == WALL:
+                        if floor_count >= 6 and wall_count >= 1:
+                            tile.set_type(FLOOR)
+            
     def find_best_candidate_tile(self, floor: list):
         best_tile = None
         most_unused_space = 0
@@ -302,23 +471,23 @@ class Map:
         pass
 
     def move_actor(self, floor_idx, avatar: Character, direction: str):
-        print(f"attempting to move: {direction}")
+        # print(f"attempting to move: {direction}")
         floor = self.tower[floor_idx]
         x, y = avatar.coord
         dx, dy = self.moves[direction]
         tx = x + dx
         ty = y + dy
-        print(f"tx: {tx} ty: {ty}")
+        # print(f"tx: {tx} ty: {ty}")
         if not (0 <= tx < self.width and 0 <= ty < self.height):
-            print("Cannot move outside map")
+            # print("Cannot move outside map")
             return False
         try:
             dest_tile: Tile = floor[ty][tx]
-            if dest_tile.get_type() != FLOOR:
-                print(f"Cannot move into wall")
+            if dest_tile.get_type() != FLOOR and dest_tile.get_type() != ENDPOINT:
+                # print(f"Cannot move into wall")
                 return False
         except Exception as e:
-            print(f"failed to get tile: {e}")
+            # print(f"failed to get tile: {e}")
             return False
         avatar.set_coord((tx, ty))
         return True
