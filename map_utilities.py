@@ -225,9 +225,10 @@ def render_first_person(
 
     player_tile_x, player_tile_y = avatar.coord
 
+    camera_z = 0.5
     # put camera in center of tile
-    player_x = player_tile_x + 0.5
-    player_y = player_tile_y + 0.5
+    player_x = player_tile_x + camera_z
+    player_y = player_tile_y + camera_z
 
     player_angle = avatar.angle
 
@@ -238,6 +239,11 @@ def render_first_person(
 
     camera_x = player_x - forward_x * CAMERA_BACK_OFFSET
     camera_y = player_y - forward_y * CAMERA_BACK_OFFSET
+
+    floor_z = 0
+    ceiling_z = 1
+    world_z = 1.0
+
 
     renderables = []
 
@@ -287,20 +293,30 @@ def render_first_person(
             # FLOOR
             #
             if tile.get_type() == FLOOR:
-                polygon = project_floor_tile(
-                    x, y,
-                    camera_x, camera_y, player_angle,
+                floor_polygon, ceiling_polygon = project_floor_tile(
+                    x, y, world_z,
+                    camera_x, camera_y, camera_z, player_angle,
                     screen_width, screen_height,
-                    focal_length
+                    focal_length,
+                    floor_z, ceiling_z
                 )
-                if polygon is not None:
+                if floor_polygon is not None:
 
                     renderables.append(
                         (
                             distance,
                             "floor",
-                            polygon
+                            floor_polygon
                             # (80,70,60)
+                        )
+                    )
+                if ceiling_polygon is not None:
+
+                    renderables.append(
+                        (
+                            distance,
+                            "ceiling",
+                            ceiling_polygon
                         )
                     )
 
@@ -310,25 +326,6 @@ def render_first_person(
 
             elif tile.get_type() == WALL:
 
-                # faces = get_wall_faces(x, y)
-
-                # for face in faces:
-
-                #     polygon = project_face(
-                #         face,
-                #         camera_x, camera_y, player_angle,
-                #         screen_width, screen_height,
-                #         focal_length
-                #     )
-
-                #     if polygon is not None:
-                #         renderables.append(
-                #             (
-                #                 distance,
-                #                 polygon,
-                #                 (120,120,120)
-                #             )
-                #         )
                 faces = get_wall_faces(x, y)
 
                 # wall center
@@ -424,13 +421,19 @@ def render_first_person(
                 (80,70,60),
                 polygon
             )
+        elif surface_type == "ceiling":
+            pygame.draw.polygon(
+                screen,
+                (25,25,25),
+                polygon
+            )
 
-        pygame.draw.polygon(
-            screen,
-            (30,30,30),
-            polygon,
-            1
-        )
+        # pygame.draw.polygon(
+        #     screen,
+        #     (30,30,30),
+        #     polygon,
+        #     1
+        # )
 
 def world_to_camera(
     world_x, world_y, world_z,
@@ -545,6 +548,7 @@ def project_point(
     world_z,
     camera_x,
     camera_y,
+    camera_z,
     player_angle,
     screen_width,
     screen_height,
@@ -555,6 +559,7 @@ def project_point(
     # position relative to player
     dx = world_x - camera_x
     dy = world_y - camera_y
+    dz = world_z - camera_z
 
     # # camera direction
     # forward_x = math.cos(player_angle)
@@ -571,7 +576,7 @@ def project_point(
     right_y = math.sin(player_angle)
 
     # convert world coordiante into comera-relative coordinate
-    camera_x = dx * right_x + dy * right_y
+    camera_horizontal = dx * right_x + dy * right_y
     camera_depth = dx * forward_x + dy * forward_y
 
     # behind player / too close to projection plane
@@ -584,45 +589,73 @@ def project_point(
 
     screen_x = (
         screen_center_x
-        + (camera_x / camera_depth) * focal_length
+        + (camera_horizontal / camera_depth) * focal_length
     )
 
     screen_y = (
         screen_center_y
-        - ((world_z - eye_height) / camera_depth) * focal_length
+        - (dz / camera_depth) * focal_length
     )
 
     return (int(screen_x), int(screen_y))
 
 def project_floor_tile(
-    x, y,
-    camera_x, camera_y, player_angle,
+    x, y, world_z,
+    camera_x, camera_y, camera_z, player_angle,
     screen_width, screen_height,
-    focal_length
+    focal_length,
+    floor_z, ceiling_z
 ):
-    corners = [
-        (x,     y,      0),
-        (x + 1, y,      0),
-        (x + 1, y + 1,  0),
-        (x,     y + 1,  0)
+
+    floor_relative_z = floor_z - camera_z
+    ceiling_relative_z = ceiling_z - camera_z
+
+    floor_corners = [
+        (x,     y,      floor_z),
+        (x + 1, y,      floor_z),
+        (x + 1, y + 1,  floor_z),
+        (x,     y + 1,  floor_z)
     ]
 
-    projected = []
+    ceiling_corners = [
+        (x,     y,      ceiling_z),
+        (x + 1, y,      ceiling_z),
+        (x + 1, y + 1,  ceiling_z),
+        (x,     y + 1,  ceiling_z)
+    ]
+    
+    floor_projected = []
+    ceiling_projected = []
 
-    for wx, wy, wz in corners:
+    for wx, wy, wz in floor_corners:
         point = project_point(
             wx, wy, wz,
-            camera_x, camera_y, player_angle,
+            camera_x, camera_y, camera_z,
+            player_angle,
             screen_width, screen_height,
             focal_length
         )
 
         if point is None:
-            return None
+            return None, None
 
-        projected.append(point)
+        floor_projected.append(point)
 
-    return projected
+    for wx, wy, wz in ceiling_corners:
+        point = project_point(
+            wx, wy, wz,
+            camera_x, camera_y, camera_z, 
+            player_angle,
+            screen_width, screen_height,
+            focal_length
+        )
+
+        if point is None:
+            return None, None
+
+        ceiling_projected.append(point)
+
+    return floor_projected, ceiling_projected
 
 def get_wall_faces(x, y):
     return [

@@ -115,7 +115,7 @@ class Map:
 
         for y in range(top, top + room_height):
             for x in range(left, left + room_width):
-                if not (0 <= x < self.width and 0 <= y < self.height):
+                if not (1 <= x < self.width - 1 and 1 <= y < self.height - 1):
                     return False
         if self.room_fits_space(left, top, floor, room_width, room_height):
             for y in range(top, top + room_height):
@@ -128,7 +128,7 @@ class Map:
 
         for y in range(top - padding, top + height + padding):
             for x in range( left - padding, left + height + padding):
-                if not (0 <= x < self.width and 0 <= y < self.height):
+                if not (1 <= x < self.width - 1 and 1 <= y < self.height - 1):
                     return False
             if floor[y][x].get_type == FLOOR:
                 return False
@@ -175,24 +175,39 @@ class Map:
 
             side = random.randint(1,4)
             start_coord = None
+            starting_direction = None
             match side:
+                # top
                 case 1:
-                    start_coord = (random.randint(0,self.width-1), 0)
+                    start_coord = (random.randint(0,self.width-2), 0)
+                    starting_direction = "down"
+                # right
                 case 2:
-                    start_coord = (self.width - 1, random.randint(0,self.height-1))
+                    start_coord = (self.width - 2, random.randint(0,self.height-2))
+                    starting_direction = "left"
+                # bottom
                 case 3:
-                    start_coord = (random.randint(0,self.height-1), self.height - 1)
+                    start_coord = (random.randint(0,self.height-2), self.height - 2)
+                    starting_direction = "up"
+                # left
                 case 4:
-                    start_coord = (0, random.randint(0,self.height-1))
+                    start_coord = (0, random.randint(0,self.height-2))
+                    starting_direction = "right"
             start_coord = start_coord if inc_start_coord is None else inc_start_coord
             self.start_coord = start_coord
             self.already_visited_coords.append(start_coord)
             current_coord = start_coord
             current_tile = floor[start_coord[1]][start_coord[0]]
-            current_tile.set_type(FLOOR)
+            current_tile.set_type(WALL)
+            x, y = start_coord
+            dx, dy = self.moves[starting_direction]
+            tx = x + dx
+            ty = y + dy
+            self.start_coord = (tx, ty)
+            floor[ty][tx].set_type(FLOOR)
             # floor[start_coord[0]][start_coord[1]].set_type(FLOOR)
             # for _ in range(50):
-            self.explore(current_coord, floor)
+            self.explore((tx, ty), floor)
             # self.remove_alcoves_and_pillars(floor)
             # while True:
             #     # print(f"current_coord: {current_coord}")
@@ -315,7 +330,7 @@ class Map:
             ty = y + dy
 
             # Candidate tile must be inside the map
-            if not (0 <= tx < self.width and 0 <= ty < self.height):
+            if not (1 <= tx < self.width - 1 and 1 <= ty < self.height - 1):
                 continue
 
             # Don't revisit a tile we've already carved
@@ -329,7 +344,7 @@ class Map:
                 nx = tx + ndx
                 ny = ty + ndy
 
-                if not (0 <= nx < self.width and 0 <= ny < self.height):
+                if not (1 <= nx < self.width - 1 and 1 <= ny < self.height - 1):
                     continue
 
                 if (nx, ny) == (x,y):
@@ -371,7 +386,7 @@ class Map:
                     for(dx, dy) in self.all_moves.values():
                         tx = x + dx
                         ty = y + dy
-                        if not (0 <= tx < self.width and 0 <= ty < self.height):
+                        if not (1 <= tx < self.width and 1 <= ty < self.height):
                             continue
                         tile_t: Tile = floor[ty][tx]
                         tile_t_type = tile_t.get_type()
@@ -405,9 +420,9 @@ class Map:
                     temp_y += dy
 
                     if not (
-                        0 <= temp_x < self.width
+                        1 <= temp_x < self.width
                         and 
-                        0 <= temp_y < self.height
+                        1 <= temp_y < self.height
                     ): 
                         break
 
@@ -478,7 +493,7 @@ class Map:
         tx = x + dx
         ty = y + dy
         # print(f"tx: {tx} ty: {ty}")
-        if not (0 <= tx < self.width and 0 <= ty < self.height):
+        if not (1 <= tx < self.width and 1 <= ty < self.height):
             # print("Cannot move outside map")
             return False
         try:
