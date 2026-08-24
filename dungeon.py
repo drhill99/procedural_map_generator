@@ -15,6 +15,9 @@ MAP_HEIGHT = 80
 MAP_WIDTH = 80
 VIEW_WIDTH = 10
 VIEW_HEIGHT = 5
+
+SCREEN_WIDTH = VIEW_WIDTH * TILE_SIZE
+SCREEN_HEIGHT = VIEW_HEIGHT * TILE_SIZE
 map_details = MapDetails(
     tile_size=TILE_SIZE,
     map_height=MAP_HEIGHT,
@@ -23,9 +26,21 @@ map_details = MapDetails(
     px_width=32*40,
 )
 
+
 PIXEL_HEIGHT = TILE_SIZE * MAP_HEIGHT
 PIXEL_WIDTH = TILE_SIZE * MAP_WIDTH
-screen = pygame.display.set_mode((VIEW_WIDTH * TILE_SIZE, VIEW_HEIGHT * TILE_SIZE))
+
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+
+VIEW_SCREEN_WIDTH = SCREEN_WIDTH // 2
+
+first_person_surface = pygame.Surface(
+    (VIEW_SCREEN_WIDTH, SCREEN_HEIGHT)
+)
+
+top_down_surface = pygame.Surface(
+    (VIEW_SCREEN_WIDTH, SCREEN_HEIGHT)
+)
 # screen = pygame.display.set_mode((800,600))
 pygame.display.set_caption("My game")
 
@@ -51,7 +66,7 @@ floor_textures = {
 }
 floor_idx = 0
 actors = {}
-avatar = Character(map.start_coord)
+avatar = Character(map.start_coord, angle=0)
 actors[avatar.coord] = avatar.image
 
 camera = Camera(MAP_WIDTH, MAP_HEIGHT)
@@ -64,14 +79,66 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_UP:
-                direction = "up"
-            elif event.key == pygame.K_DOWN:
-                direction = "down"
-            elif event.key == pygame.K_LEFT:
-                direction = "left"
+            # if event.key == pygame.K_UP:
+            #     direction = "up"
+            # elif event.key == pygame.K_DOWN:
+            #     direction = "down"
+            # elif event.key == pygame.K_LEFT:
+            #     direction = "left"
+            # elif event.key == pygame.K_RIGHT:
+            #     direction = "right"
+            # turn
+            if event.key == pygame.K_LEFT:
+                avatar.angle -= math.radians(90)
+                avatar.angle %= math.tau
+
             elif event.key == pygame.K_RIGHT:
-                direction = "right"
+                avatar.angle += math.radians(90)
+                avatar.angle %= math.tau
+
+            # forward
+            elif event.key == pygame.K_w:
+                dx = round(math.sin(avatar.angle))
+                dy = round(-math.cos(avatar.angle))
+
+                # direction = vector_to_direction(dx, dy)
+                direction = relative_move(
+                    avatar.angle,
+                    "forward"
+                )
+
+            # backward
+            elif event.key == pygame.K_s:
+                dx = -round(math.sin(avatar.angle))
+                dy = -round(-math.cos(avatar.angle))
+
+                # # direction = vector_to_direction(dx, dy)
+                direction = relative_move(
+                    avatar.angle,
+                    "backward"
+                )
+
+            # strafe left
+            elif event.key == pygame.K_a:
+                dx = -round(math.cos(avatar.angle))
+                dy = -round(math.sin(avatar.angle))
+
+                # # direction = vector_to_direction(dx, dy)
+                direction = relative_move(
+                    avatar.angle,
+                    "strafe_left"
+                )
+
+            # strafe right
+            elif event.key == pygame.K_d:
+                dx = round(math.cos(avatar.angle))
+                dy = round(math.sin(avatar.angle))
+
+                # # direction = vector_to_direction(dx, dy)
+                direction = relative_move(
+                    avatar.angle,
+                    "strafe_right"
+                )
 
 
     if direction is not None:
@@ -102,78 +169,102 @@ while running:
 
     camera.x += (target_x - camera.x) * 0.1
     camera.y += (target_y - camera.y) * 0.1
-    # camera.x = max(0, min(avatar.coord[0] - VIEW_WIDTH // 2, MAP_WIDTH - VIEW_WIDTH))
-    # camera.y = max(0, min(avatar.coord[1] - VIEW_HEIGHT // 2, MAP_HEIGHT - VIEW_HEIGHT))
+    camera.x = max(0, min(avatar.coord[0] - VIEW_WIDTH // 2, MAP_WIDTH - VIEW_WIDTH))
+    camera.y = max(0, min(avatar.coord[1] - VIEW_HEIGHT // 2, MAP_HEIGHT - VIEW_HEIGHT))
     screen.fill((0,0,0))
     for floor in tower:
-        for row in floor:
-            for tile in row:
-                if isinstance(tile, Tile):
-                    world_x, world_y = tile.get_coord()
-                    # x = x * TILE_SIZE
-                    # y = y * TILE_SIZE
-                    screen_x = int((world_x - camera.x) * TILE_SIZE)
-                    screen_y = int((world_y - camera.y) * TILE_SIZE)
+        render_first_person(
+            first_person_surface,
+            floor,
+            avatar
+        )
+        render_top_down(
+            top_down_surface,
+            floor,
+            avatar,
+            camera,
+            visible_tiles,
+            TILE_SIZE,
+            wall_tile
+        )
+        screen.blit(
+            first_person_surface,
+            (0,0)
+        )
 
-                    target_alpha = 1.0 if tile.coord in visible_tiles else 0.0
+        screen.blit(
+            top_down_surface,
+            (VIEW_SCREEN_WIDTH,0)
+        )
+    # for floor in tower:
+    #     for row in floor:
+    #         for tile in row:
+    #             if isinstance(tile, Tile):
+    #                 world_x, world_y = tile.get_coord()
+    #                 # x = x * TILE_SIZE
+    #                 # y = y * TILE_SIZE
+    #                 screen_x = int((world_x - camera.x) * TILE_SIZE)
+    #                 screen_y = int((world_y - camera.y) * TILE_SIZE)
 
-                    current_alpha = tile_visibility.get(tile.coord, 0.0)
+    #                 target_alpha = 1.0 if tile.coord in visible_tiles else 0.0
 
-                    current_alpha += (target_alpha - current_alpha) * 0.25
+    #                 current_alpha = tile_visibility.get(tile.coord, 0.0)
 
-                    tile_visibility[tile.coord] = current_alpha
+    #                 current_alpha += (target_alpha - current_alpha) * 0.25
 
-                    alpha = int(current_alpha * 255)
+    #                 tile_visibility[tile.coord] = current_alpha
 
-                    if alpha <= 0:
-                        continue
+    #                 alpha = int(current_alpha * 255)
 
-                    if tile.coord in visible_tiles:
-                        tile_type = tile.get_type()
-                        if tile_type == WALL:
-                            surface = wall_tile.copy()
-                            surface.set_alpha(alpha)
-                            screen.blit(
-                                # wall_tiles[tile.tot_adjacency],
-                                surface,
-                                (screen_x, screen_y)
-                            )
-                        elif tile_type == FLOOR:
-                            surface = pygame.Surface(
-                                (TILE_SIZE, TILE_SIZE),
-                                pygame.SRCALPHA
-                            )
-                            surface.fill((180,180,180,alpha))
-                            screen.blit(
-                                surface,
-                                (screen_x, screen_y)
-                            )
-                        elif tile_type == ENDPOINT:
-                            surface = pygame.Surface(
-                                (TILE_SIZE, TILE_SIZE),
-                                pygame.SRCALPHA
-                            )
-                            surface.fill((255,255,255,alpha))
-                            screen.blit(
-                                surface,
-                                (screen_x, screen_y)
-                            )
-                    # else:
-                    #     screen.blit(
-                    #             # wall_tiles[tile.tot_adjacency],
-                    #             wall_tile,
-                    #             (screen_x, screen_y)
-                    #         )
-    screen_x = int((avatar.render_x - camera.x) * TILE_SIZE)
-    screen_y = int((avatar.render_y - camera.y) * TILE_SIZE)
+    #                 if alpha <= 0:
+    #                     continue
 
-    # for (world_x, world_y), image in actors.items():
-    #     screen_x = (world_x - camera.x) * TILE_SIZE
-    #     screen_y = (world_y - camera.y) * TILE_SIZE
-    screen.blit(
-        avatar.image,
-        (screen_x, screen_y)
-    )
+    #                 if tile.coord in visible_tiles:
+    #                     tile_type = tile.get_type()
+    #                     if tile_type == WALL:
+    #                         surface = wall_tile.copy()
+    #                         surface.set_alpha(alpha)
+    #                         screen.blit(
+    #                             # wall_tiles[tile.tot_adjacency],
+    #                             surface,
+    #                             (screen_x, screen_y)
+    #                         )
+    #                     elif tile_type == FLOOR:
+    #                         surface = pygame.Surface(
+    #                             (TILE_SIZE, TILE_SIZE),
+    #                             pygame.SRCALPHA
+    #                         )
+    #                         surface.fill((180,180,180,alpha))
+    #                         screen.blit(
+    #                             surface,
+    #                             (screen_x, screen_y)
+    #                         )
+    #                     elif tile_type == ENDPOINT:
+    #                         surface = pygame.Surface(
+    #                             (TILE_SIZE, TILE_SIZE),
+    #                             pygame.SRCALPHA
+    #                         )
+    #                         surface.fill((255,255,255,alpha))
+    #                         screen.blit(
+    #                             surface,
+    #                             (screen_x, screen_y)
+    #                         )
+    #                 # else:
+    #                 #     screen.blit(
+    #                 #             # wall_tiles[tile.tot_adjacency],
+    #                 #             wall_tile,
+    #                 #             (screen_x, screen_y)
+    #                 #         )
+    # screen_x = int((avatar.render_x - camera.x) * TILE_SIZE)
+    # screen_y = int((avatar.render_y - camera.y) * TILE_SIZE)
+
+    # # for (world_x, world_y), image in actors.items():
+    # #     screen_x = (world_x - camera.x) * TILE_SIZE
+    # #     screen_y = (world_y - camera.y) * TILE_SIZE
+    # screen.blit(
+    #     avatar.image,
+    #     (screen_x, screen_y)
+    # )
 
     pygame.display.flip()
 
