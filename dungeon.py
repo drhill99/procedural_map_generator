@@ -57,7 +57,10 @@ map.display_map()
 wall_tiles: dict = None
 for floor in tower:
     wall_tiles = gen_walls(floor, map_details)
-wall_tile = pygame.image.load("assets/256wall.png").convert()
+# wall_tile = pygame.image.load("assets/256wall.png").convert()
+brick_strip_16x256 = [pygame.image.load("assets/16x256brickStrip.png").convert()]
+# wall_tile = build_wall_texture(brick_strip_16x256)
+wall_tile = pygame.image.load("assets/AIgenBrickWall.png")
 floor_textures = {
     0: floor_texture,
     90: pygame.transform.rotate(floor_texture, 90),
@@ -176,7 +179,8 @@ while running:
         render_first_person(
             first_person_surface,
             floor,
-            avatar
+            avatar,
+            wall_tile
         )
         render_top_down(
             top_down_surface,

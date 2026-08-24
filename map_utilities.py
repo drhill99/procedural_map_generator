@@ -1,5 +1,6 @@
 # libraries
 import pygame
+import random
 import math
 from dataclasses import dataclass
 from pynput import keyboard
@@ -183,6 +184,7 @@ def render_first_person(
     screen,
     floor: list,
     avatar: Character,
+    wall_texture,
     render_distance=8
 ):
     screen_width = screen.get_width()
@@ -296,8 +298,9 @@ def render_first_person(
                     renderables.append(
                         (
                             distance,
-                            polygon,
-                            (80,70,60)
+                            "floor",
+                            polygon
+                            # (80,70,60)
                         )
                     )
 
@@ -371,8 +374,9 @@ def render_first_person(
                         renderables.append(
                             (
                                 distance,
-                                polygon,
-                                (120, 120, 120)
+                                "wall",
+                                polygon
+                                # (120, 120, 120)
                             )
                         )
             #
@@ -387,13 +391,39 @@ def render_first_person(
         reverse=True
     )
 
-    for distance, polygon, color in renderables:
+    for distance, surface_type, polygon in renderables:
+        
+        # pygame.draw.polygon(
+        #     screen,
+        #     color,
+        #     polygon
+        # )
 
-        pygame.draw.polygon(
-            screen,
-            color,
-            polygon
-        )
+        # pygame.draw.polygon(
+        #     screen,
+        #     (30,30,30),
+        #     polygon,
+        #     1
+        # )
+        if surface_type == "wall":
+            textured = draw_textured_wall_perspective(
+                screen,
+                wall_texture,
+                polygon
+            )
+
+            if not textured:
+                pygame.draw.polygon(
+                    screen,
+                    (120,120,120),
+                    polygon
+                )
+        elif surface_type == "floor":
+            pygame.draw.polygon(
+                screen,
+                (80,70,60),
+                polygon
+            )
 
         pygame.draw.polygon(
             screen,
@@ -1064,3 +1094,243 @@ def relative_move(angle, movement):
     }
 
     return movement_table[heading][movement]
+
+# def draw_textured_wall(
+#     screen,
+#     texture,
+#     polygon
+# ):
+#     if len(polygon) != 4:
+#         return False
+
+#     #
+#     # Our wall faces are expected to be:
+#     #
+#     # bottom-left
+#     # bottom-right
+#     # top-right
+#     # top-left
+#     #
+#     p0, p1, p2, p3 = polygon
+
+#     tex_width = texture.get_width()
+#     tex_height = texture.get_height()
+
+#     for tex_x in range(tex_width):
+
+#         t = tex_x / (tex_width - 1)
+
+#         #
+#         # Interpolate along bottom edge
+#         #
+#         bottom_x = (
+#             p0[0]
+#             + (p1[0] - p0[0]) * t
+#         )
+
+#         bottom_y = (
+#             p0[1]
+#             + (p1[1] - p0[1]) * t
+#         )
+
+#         #
+#         # Interpolate along top edge
+#         #
+#         top_x = (
+#             p3[0]
+#             + (p2[0] - p3[0]) * t
+#         )
+
+#         top_y = (
+#             p3[1]
+#             + (p2[1] - p3[1]) * t
+#         )
+
+#         #
+#         # Grab one vertical column of texture
+#         #
+#         column = texture.subsurface(
+#             tex_x,
+#             0,
+#             1,
+#             tex_height
+#         )
+
+#         wall_height = abs(
+#             int(bottom_y - top_y)
+#         )
+
+#         if wall_height <= 0:
+#             continue
+
+#         column = pygame.transform.scale(
+#             column,
+#             (1, wall_height)
+#         )
+
+#         #
+#         # At cardinal camera angles these should normally
+#         # be nearly the same X coordinate.
+#         #
+#         screen_x = int(
+#             (bottom_x + top_x) / 2
+#         )
+
+#         screen_y = int(
+#             min(top_y, bottom_y)
+#         )
+
+#         screen.blit(
+#             column,
+#             (screen_x, screen_y)
+#         )
+
+#     return True
+
+def draw_textured_wall_perspective(
+    screen,
+    texture,
+    polygon
+):
+    if len(polygon) != 4:
+        return False
+
+    p0, p1, p2, p3 = polygon
+
+    tex_w = texture.get_width()
+    tex_h = texture.get_height()
+
+    left = max(
+        0,
+        int(min(p0[0], p3[0], p1[0], p2[0]))
+    )
+
+    right = min(
+        screen.get_width() - 1,
+        int(max(p0[0], p3[0], p1[0], p2[0]))
+    )
+
+    if right <= left:
+        return False
+
+    #
+    # Which side is visually left/right?
+    #
+    if p0[0] <= p1[0]:
+        bottom_left = p0
+        bottom_right = p1
+        top_left = p3
+        top_right = p2
+        flip_texture = False
+    else:
+        bottom_left = p1
+        bottom_right = p0
+        top_left = p2
+        top_right = p3
+        flip_texture = True
+
+    width = bottom_right[0] - bottom_left[0]
+
+    if abs(width) < 1:
+        return False
+
+    for screen_x in range(left, right + 1):
+
+        #
+        # Horizontal location across wall.
+        #
+        t = (
+            (screen_x - bottom_left[0])
+            / width
+        )
+
+        t = max(0.0, min(1.0, t))
+
+        #
+        # Top/bottom positions at this screen X.
+        #
+        bottom_y = (
+            bottom_left[1]
+            + (bottom_right[1] - bottom_left[1]) * t
+        )
+
+        top_y = (
+            top_left[1]
+            + (top_right[1] - top_left[1]) * t
+        )
+
+        top = max(
+            0,
+            int(min(top_y, bottom_y))
+        )
+
+        bottom = min(
+            screen.get_height() - 1,
+            int(max(top_y, bottom_y))
+        )
+
+        height = bottom - top
+
+        if height <= 0:
+            continue
+
+        if flip_texture:
+            tex_x = int(
+                (1.0 - t) * (tex_w - 1)
+            )
+        else:
+            tex_x = int(
+                t * (tex_w - 1)
+            )
+
+        #
+        # Grab one source column.
+        #
+        column = texture.subsurface(
+            tex_x,
+            0,
+            1,
+            tex_h
+        )
+
+        #
+        # Scale that column to EXACTLY cover this
+        # screen column.
+        #
+        column = pygame.transform.scale(
+            column,
+            (1, height)
+        )
+
+        screen.blit(
+            column,
+            (screen_x, top)
+        )
+
+    return True
+
+def build_wall_texture(row_textures):
+    wall = pygame.Surface((256, 256))
+
+    y = 0
+
+    while y < 256:
+        candidates = [
+            texture
+            for texture in row_textures
+            if y + texture.get_height() <= 256
+        ]
+
+        if not candidates:
+            break
+
+        row = random.choice(candidates)
+
+        wall.blit(
+            row,
+            (0, y)
+        )
+
+        y += row.get_height()
+
+    return wall
