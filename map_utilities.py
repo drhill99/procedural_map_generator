@@ -201,23 +201,23 @@ def render_first_person(
     #
 
     # ceiling/sky
-    pygame.draw.rect(
-        screen,
-        (40,40,50),
-        (0, 0, screen_width, screen_height // 2)
-    )
+    # pygame.draw.rect(
+    #     screen,
+    #     (40,40,50),
+    #     (0, 0, screen_width, screen_height // 2)
+    # )
 
-    # distant floor background
-    pygame.draw.rect(
-        screen,
-        (50,50,40),
-        (
-            0,
-            screen_height // 2,
-            screen_width,
-            screen_height // 2
-        )
-    )
+    # # distant floor background
+    # pygame.draw.rect(
+    #     screen,
+    #     (50,50,40),
+    #     (
+    #         0,
+    #         screen_height // 2,
+    #         screen_width,
+    #         screen_height // 2
+    #     )
+    # )
 
     #
     # player location

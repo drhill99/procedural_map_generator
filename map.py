@@ -148,8 +148,8 @@ class Map:
             if not possible_moves:
                 if random.random() < room_chance:
                     self.carve_room((x,y), floor)
-                else:
-                    floor[y][x].set_type(ENDPOINT)
+                # else:
+                #     floor[y][x].set_type(ENDPOINT)
                 continue
             main_move = possible_moves.pop()
 
@@ -498,7 +498,8 @@ class Map:
             return False
         try:
             dest_tile: Tile = floor[ty][tx]
-            if dest_tile.get_type() != FLOOR and dest_tile.get_type() != ENDPOINT:
+            # if dest_tile.get_type() != FLOOR and dest_tile.get_type() != ENDPOINT:
+            if dest_tile.get_type() != FLOOR:
                 # print(f"Cannot move into wall")
                 return False
         except Exception as e:

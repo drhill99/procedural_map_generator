@@ -38,6 +38,8 @@ first_person_surface = pygame.Surface(
     (VIEW_SCREEN_WIDTH, SCREEN_HEIGHT)
 )
 
+first_person_surface.fill((0,0,0))
+
 top_down_surface = pygame.Surface(
     (VIEW_SCREEN_WIDTH, SCREEN_HEIGHT)
 )
